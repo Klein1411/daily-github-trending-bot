@@ -2,9 +2,8 @@ name: Daily GitHub Discord Report
 
 on:
   schedule:
-    # 00:00 UTC tương đương 07:00 AM giờ Việt Nam (UTC+7)
     - cron: '0 0 * * *'
-  workflow_dispatch: # Cho phép bấm nút chạy bằng tay trên web GitHub
+  workflow_dispatch:
 
 jobs:
   run-report:
@@ -18,7 +17,11 @@ jobs:
         with:
           python-version: '3.12'
           
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+          
       - name: Run Python script
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
