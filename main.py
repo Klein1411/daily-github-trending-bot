@@ -1,7 +1,7 @@
 import urllib.request
 import json
 import os
-import google.generativeai as genai
+from google import genai
 from datetime import datetime, timedelta
 
 def get_yesterday():
@@ -12,18 +12,20 @@ def analyze_repos_with_gemini(repos_data):
     if not api_key:
         return None
     
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-3.0-flash')
-    
-    prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có tốc độ tăng sao nhanh nhất.
+    try:
+        client = genai.Client(api_key=api_key)
+        prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có tốc độ tăng sao nhanh nhất.
 Hãy viết ra Ưu điểm (Pros) và Nhược điểm (Cons) một cách chi tiết, chuyên nghiệp cho TỪNG kho lưu trữ dựa trên thông tin của chúng.
 Format trả về phải là một chuỗi JSON duy nhất, là một mảng (array) chứa các object. Mỗi object có 3 key: "name" (tên repo gốc), "pros" (ưu điểm chi tiết), "cons" (nhược điểm chi tiết).
 Không trả về markdown, chỉ trả về chuỗi JSON thuần túy để parse.
 Dữ liệu thô:
 """ + json.dumps(repos_data)
-    
-    try:
-        response = model.generate_content(prompt)
+        
+        response = client.models.generate_content(
+            model='gemini-3.0-flash',
+            contents=prompt
+        )
+
         text = response.text
         start = text.find('[')
         end = text.rfind(']') + 1
