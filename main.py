@@ -87,10 +87,15 @@ def main():
                 if ai_item.get('name') == item['name']:
                     pros = ai_item.get('pros', pros)
                     cons = ai_item.get('cons', cons)
+                    # Cắt ngắn nếu quá dài để tránh lỗi Discord 400 Bad Request (giới hạn 1024 ký tự)
+                    if len(pros) > 400: pros = pros[:397] + "..."
+                    if len(cons) > 400: cons = cons[:397] + "..."
                     break
         
         value_text = f"**Ưu điểm (Pros):** {pros}\n**Nhược điểm (Cons):** {cons}\n[🔗 Mở Kho lưu trữ]({item['url']})"
-        
+        if len(value_text) > 1024:
+            value_text = value_text[:1021] + "..."
+            
         fields.append({
             "name": f"{i}. {item['name']} [⭐ +{item['stars']}]",
             "value": value_text,
