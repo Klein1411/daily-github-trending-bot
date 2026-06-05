@@ -2,10 +2,9 @@ import urllib.request
 import json
 import os
 from google import genai
-from datetime import datetime, timedelta
-
-def get_yesterday():
-    return (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+from datetime import datetime
+import requests
+from bs4 import BeautifulSoup
 
 def call_openrouter(prompt, api_key):
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -32,7 +31,7 @@ def analyze_repos(repos_data):
     gemini_key = os.environ.get("GEMINI_API_KEY")
     openrouter_key = os.environ.get("OPENROUTER_API_KEY")
     
-    prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có xu hướng phát triển nhanh nhất.
+    prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có lượng sao tăng trưởng trong ngày cao nhất (Trending).
 Hãy viết ra Ưu điểm (Pros) và Nhược điểm (Cons) một cách chi tiết, chuyên nghiệp cho TỪNG kho lưu trữ dựa trên thông tin của chúng.
 Format trả về phải là một chuỗi JSON duy nhất, là một mảng (array) chứa các object. Mỗi object có 3 key: "name" (tên repo gốc), "pros" (ưu điểm chi tiết), "cons" (nhược điểm chi tiết).
 Không trả về markdown, chỉ trả về chuỗi JSON thuần túy để parse.
@@ -86,26 +85,34 @@ def main():
         print("Lỗi: Chưa cài đặt DISCORD_WEBHOOK_URL.")
         return
 
-    yesterday = get_yesterday()
-    # Chuyển đổi query sang các repo ĐƯỢC PUSH HÔM QUA (pushed:>yesterday) để ra các repo bự/phổ biến nhất có update
-    url = f"https://api.github.com/search/repositories?q=pushed:>{yesterday}&sort=stars&order=desc&per_page=5"
+    url = "https://github.com/trending"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
     except Exception as e:
-        print(f"Lỗi khi lấy dữ liệu GitHub: {e}")
+        print(f"Lỗi khi cào dữ liệu GitHub Trending: {e}")
         return
 
     repos_raw = []
-    for item in data.get('items', []):
+    for article in soup.find_all('article', class_='Box-row'):
+        h2 = article.find('h2', class_='h3 lh-condensed')
+        if not h2: continue
+        a_tag = h2.find('a')
+        if not a_tag: continue
+        name = a_tag['href'].strip('/')
+        
+        span_stars = article.find('span', class_='d-inline-block float-sm-right')
+        stars_today = span_stars.text.strip().replace(' stars today', '') if span_stars else "0"
+        
         repos_raw.append({
-            "name": item['full_name'],
-            "description": item.get('description'),
-            "url": item['html_url'],
-            "stars": item.get('stargazers_count')
+            "name": name,
+            "url": f"https://github.com/{name}",
+            "stars": f"+{stars_today}"
         })
+        if len(repos_raw) >= 5:
+            break
 
     # Chạy AI phân tích
     ai_analysis, used_model = analyze_repos(repos_raw)
@@ -134,11 +141,11 @@ def main():
             "inline": False
         })
 
-    footer_text = f"Powered by {used_model} & Bé Lilith 🪄" if used_model else "Powered by GitHub Search & Bé Lilith 🪄"
+    footer_text = f"Powered by {used_model} & Bé Lilith 🪄" if used_model else "Powered by GitHub Trending & Bé Lilith 🪄"
 
     embed = {
-        "title": "🚀 BÁO CÁO GITHUB TRENDING (HOTTEST PUSHED REPOS)",
-        "description": f"**Ngày:** {datetime.now().strftime('%d/%m/%Y')}\n**Tiêu chí:** Các kho lưu trữ được cập nhật (push) trong 24h qua và có lượng sao cao nhất.",
+        "title": "🚀 BÁO CÁO GITHUB TRENDING TRONG 24H QUA",
+        "description": f"**Ngày:** {datetime.now().strftime('%d/%m/%Y')}\n**Tiêu chí:** Các kho lưu trữ có số sao tăng mạnh nhất trong ngày (True Trending).",
         "color": 2369870,
         "fields": fields,
         "footer": {
