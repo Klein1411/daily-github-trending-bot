@@ -67,8 +67,8 @@ def main():
 
     fields = []
     for i, item in enumerate(repos_raw, 1):
-        pros = "Không có phân tích (thiếu biến GEMINI_API_KEY trên GitHub Secrets)."
-        cons = "Không có phân tích (thiếu biến GEMINI_API_KEY trên GitHub Secrets)."
+        pros = "Không có phân tích (Google Gemini API đang quá tải hoặc bị lỗi)."
+        cons = "Không có phân tích (Google Gemini API đang quá tải hoặc bị lỗi)."
         
         if ai_analysis:
             for ai_item in ai_analysis:
