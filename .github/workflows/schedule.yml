@@ -1,0 +1,24 @@
+name: Daily GitHub Discord Report
+
+on:
+  schedule:
+    # 00:00 UTC tương đương 07:00 AM giờ Việt Nam (UTC+7)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Cho phép bấm nút chạy bằng tay trên web GitHub
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Run Python script
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python main.py
