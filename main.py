@@ -10,31 +10,43 @@ def get_yesterday():
 def analyze_repos_with_gemini(repos_data):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        return None
+        return None, None
     
-    try:
-        client = genai.Client(api_key=api_key)
-        prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có tốc độ tăng sao nhanh nhất.
+    client = genai.Client(api_key=api_key)
+    prompt = """Bạn là một chuyên gia phân tích mã nguồn. Dưới đây là danh sách 5 kho lưu trữ GitHub có tốc độ tăng sao nhanh nhất.
 Hãy viết ra Ưu điểm (Pros) và Nhược điểm (Cons) một cách chi tiết, chuyên nghiệp cho TỪNG kho lưu trữ dựa trên thông tin của chúng.
 Format trả về phải là một chuỗi JSON duy nhất, là một mảng (array) chứa các object. Mỗi object có 3 key: "name" (tên repo gốc), "pros" (ưu điểm chi tiết), "cons" (nhược điểm chi tiết).
 Không trả về markdown, chỉ trả về chuỗi JSON thuần túy để parse.
 Dữ liệu thô:
 """ + json.dumps(repos_data)
-        
-        response = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt
-        )
+    
+    models_to_try = [
+        'gemini-1.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-3-flash-preview',
+        'gemini-3.5-flash'
+    ]
+    
+    for model_name in models_to_try:
+        try:
+            print(f"Đang thử model: {model_name}...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
 
-        text = response.text
-        start = text.find('[')
-        end = text.rfind(']') + 1
-        if start != -1 and end != -1:
-            json_str = text[start:end]
-            return json.loads(json_str)
-    except Exception as e:
-        print(f"Gemini AI Error: {e}")
-    return None
+            text = response.text
+            start = text.find('[')
+            end = text.rfind(']') + 1
+            if start != -1 and end != -1:
+                json_str = text[start:end]
+                return json.loads(json_str), model_name
+        except Exception as e:
+            print(f"Lỗi khi dùng {model_name}: {e}")
+            continue # Thử model tiếp theo
+            
+    return None, None
 
 def main():
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
@@ -62,13 +74,13 @@ def main():
             "stars": item.get('stargazers_count')
         })
 
-    # Chạy AI phân tích
-    ai_analysis = analyze_repos_with_gemini(repos_raw)
+    # Chạy AI phân tích với cơ chế Fallback
+    ai_analysis, used_model = analyze_repos_with_gemini(repos_raw)
 
     fields = []
     for i, item in enumerate(repos_raw, 1):
-        pros = "Không có phân tích (Google Gemini API đang quá tải hoặc bị lỗi)."
-        cons = "Không có phân tích (Google Gemini API đang quá tải hoặc bị lỗi)."
+        pros = "Không có phân tích (Hệ thống AI đang bảo trì)."
+        cons = "Không có phân tích (Hệ thống AI đang bảo trì)."
         
         if ai_analysis:
             for ai_item in ai_analysis:
@@ -85,13 +97,15 @@ def main():
             "inline": False
         })
 
+    footer_text = f"Powered by {used_model} & Bé Lilith 🪄" if used_model else "Powered by GitHub Search & Bé Lilith 🪄"
+
     embed = {
-        "title": "🚀 BÁO CÁO GITHUB TRENDING (AI ANALYZED)",
+        "title": "🚀 BÁO CÁO GITHUB TRENDING",
         "description": f"**Ngày:** {datetime.now().strftime('%d/%m/%Y')}\n**Tiêu chí:** Các kho lưu trữ mới tạo có tốc độ tăng sao nhanh nhất trong 24h qua.",
         "color": 2369870,
         "fields": fields,
         "footer": {
-            "text": "Automated by GitHub Actions & Bé Lilith 🪄"
+            "text": footer_text
         }
     }
 
